@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="FreeImgView">
+
+        <attr name="ScaleEnable" format="boolean"/>
+        <attr name="MinScale" format="float"/>
+        <attr name="MaxScale" format="float">
+            <enum name="DrawableSize" value="0"/>
+        </attr>
+        <attr name="RotateEnable" format="boolean"/>
+        <attr name="CropScrollEnable" format="boolean"/>
+
+    </declare-styleable>
+
+</resources>
