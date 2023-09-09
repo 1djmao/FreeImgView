@@ -13,18 +13,18 @@
         android:visibility="visible"
         android:adjustViewBounds="true"
         android:background="@color/design_default_color_primary"
-        android:src="@mipmap/jike_1721579028859411_pic"/>
+        android:src="@mipmap/big_60395616"/>
 
     <com.idjmao.freeimgview.library.FreeImgView
         android:id="@+id/zoom_view"
-        android:layout_width="200dp"
-        android:layout_height="100dp"
-        app:ScaleEnable="false"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:ScaleEnable="true"
         app:CropScrollEnable="true"
         app:MinScale="0.5"
-        app:MaxScale="1.5"
+        app:MaxScale="DrawableSize"
         android:scaleType="centerInside"
         android:background="#66ccff"
-        android:src="@mipmap/jike_1721579028859411_pic"/>
+        android:src="@mipmap/big_60395616"/>
 
 </LinearLayout>

@@ -9,6 +9,7 @@
         </attr>
         <attr name="RotateEnable" format="boolean"/>
         <attr name="CropScrollEnable" format="boolean"/>
+        <attr name="LoadBigPic" format="boolean"/>
 
     </declare-styleable>
 
