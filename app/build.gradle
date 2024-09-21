@@ -38,4 +38,6 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 
     implementation project(path: ':library')
+
+    debugImplementation 'com.android.support:traceview:28.0.0'
 }

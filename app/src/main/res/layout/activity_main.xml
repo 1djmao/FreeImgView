@@ -13,7 +13,7 @@
         android:visibility="visible"
         android:adjustViewBounds="true"
         android:background="@color/design_default_color_primary"
-        android:src="@mipmap/big_60395616"/>
+        android:src="@mipmap/jike_1721579028859411_pic"/>
 
     <com.idjmao.freeimgview.library.FreeImgView
         android:id="@+id/zoom_view"
@@ -21,10 +21,11 @@
         android:layout_height="match_parent"
         app:ScaleEnable="true"
         app:CropScrollEnable="true"
-        app:MinScale="0.5"
-        app:MaxScale="DrawableSize"
-        android:scaleType="centerInside"
-        android:background="#66ccff"
-        android:src="@mipmap/big_60395616"/>
+        app:CropGravity="Start"
+        app:MaxScale="2"
+        app:OverScrollEnable="false"
+        android:overScrollMode="never"
+        android:scaleType="centerCrop"
+        android:background="@color/white"/>
 
 </LinearLayout>

@@ -1,15 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <declare-styleable name="FreeImgView">
-
+<!--能否缩放-->
         <attr name="ScaleEnable" format="boolean"/>
+<!--        最小缩放比例-->
         <attr name="MinScale" format="float"/>
+<!--        最大缩放比例，DrawableSize 表示根据图片分辨率和屏幕像素决定-->
         <attr name="MaxScale" format="float">
             <enum name="DrawableSize" value="0"/>
         </attr>
+<!--        能否旋转-->
         <attr name="RotateEnable" format="boolean"/>
+<!--        能否滑动出边界-->
+        <attr name="OverScrollEnable" format="boolean"/>
+<!--        CenterCrop 时能否滑动 -->
         <attr name="CropScrollEnable" format="boolean"/>
+<!--        大图加载模式-->
         <attr name="LoadBigPic" format="boolean"/>
+<!--        CenterCrop 时初始位置 -->
+        <attr name="CropGravity" format="enum">
+            <enum name="Start" value="0"/>
+            <enum name="Center" value="1"/>
+            <enum name="End" value="2"/>
+        </attr>
 
     </declare-styleable>
 

@@ -47,6 +47,8 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
     private int MAX_OVER_RESISTANCE = 0;
     private int MAX_ANIM_FROM_WAITE = 500;
 
+    private boolean canScrollOver=false;
+
     private Bitmap mBaseBitmap;
 
     BitmapRegionDecoder mRegionDecoder;
@@ -61,6 +63,9 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
     private OnClickListener mClickListener;
     private OnOutClickListener mOnOutClickListener;
 
+
+    int cropGravity=1;
+
     private ScaleType mScaleType;
 
     private boolean hasMultiTouch;//是否多点触控
@@ -70,7 +75,7 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
     private boolean scaleEnable = false;
     private boolean rotateEnable = false;
     private boolean cropScrollEnable=false;
-    private boolean isBigPic=false;
+//    private boolean isBigPic=false;
 
 
     private boolean isInit;//是否已初始化布局
@@ -84,7 +89,7 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
 
     private float mRotateFlag;
     private float mDegrees;
-    private float mScale = 1.0f;//当前缩放比例
+    private float mScale = 1.0f;//当前缩放比例,相对于初始阶段
     private int mTranslateX;//当前平移位置
     private int mTranslateY;
 
@@ -100,7 +105,7 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
     private PointF mScaleCenter = new PointF();//缩放中心
     private PointF mRotateCenter = new PointF();//旋转中心
 
-    private Transform mTranslate = new Transform();
+    public Transform mTranslate = new Transform();
 
     private RectF mClip;
     private Info mFromInfo;
@@ -121,8 +126,13 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
             mMinScale=mTypedArray.getFloat(R.styleable.FreeImgView_MinScale,1);
             mMaxScale=mTypedArray.getFloat(R.styleable.FreeImgView_MaxScale,0);
             rotateEnable =mTypedArray.getBoolean(R.styleable.FreeImgView_RotateEnable,false);
+            canScrollOver=mTypedArray.getBoolean(R.styleable.FreeImgView_OverScrollEnable,false);
             cropScrollEnable=mTypedArray.getBoolean(R.styleable.FreeImgView_CropScrollEnable,false);
-            isBigPic=mTypedArray.getBoolean(R.styleable.FreeImgView_LoadBigPic,false);
+            cropGravity=mTypedArray.getInt(R.styleable.FreeImgView_CropGravity,1);
+//            isBigPic=mTypedArray.getBoolean(R.styleable.FreeImgView_LoadBigPic,false);
+//            if (isBigPic){
+//                rotateEnable=false;
+//            }
 
             mTypedArray.recycle();
         }
@@ -133,7 +143,7 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
 
 
     private void init() {
-        super.setScaleType(ScaleType.MATRIX);
+        super.setScaleType(ImageView.ScaleType.MATRIX);
         if (mScaleType == null) mScaleType = ScaleType.CENTER_INSIDE;
         mRotateDetector = new RotateGestureDetector(mRotateListener);
         mDetector = new GestureDetector(getContext(), mGestureListener);
@@ -217,8 +227,8 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
     public float getMaxScale() {
 
         if (hasDrawable&&mMaxScale==0){
-            float mScaleW = getDrawableWidth(getDrawable())/mWidgetRect.width();
-            float mScaleH = getDrawableHeight(getDrawable())/mWidgetRect.height() ;
+            float mScaleW = getDrawableWidth()/mWidgetRect.width();
+            float mScaleH = getDrawableHeight()/mWidgetRect.height() ;
             return Math.max(mScaleW,mScaleH);
         }
 
@@ -251,6 +261,14 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
      * 启用旋转功能
      */
     public void setRotateEnable() {
+//        if (isBigPic){//加载大图不能旋转
+//            rotateEnable=false;
+//            return;
+//        }
+        if (bitmapCroper!=null){
+            rotateEnable=false;
+            return;
+        }
         rotateEnable = true;
     }
 
@@ -262,11 +280,40 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
     }
 
     public void setBigPicMode(){
+
         if (mScaleType==ScaleType.FIT_XY){
             return;
         }
-        isBigPic=true;
-        setRotateDisable();
+        post(new Runnable() {
+            @Override
+            public void run() {
+                //        isBigPic=true;
+                setRotateDisable();
+                if (mBaseBitmap==null){
+                    mBaseBitmap=((BitmapDrawable)getDrawable()).getBitmap();
+                }
+                if (mBaseBitmap!=null){
+                    bitmapW=mBaseBitmap.getWidth();
+                    bitmapH=mBaseBitmap.getHeight();
+                    setBitmapCroper(new BigBitmapCroper(mMinScale*MatrixUtils.getMatrixScale(mBaseMatrix)[0],getMaxScale()*MatrixUtils.getMatrixScale(mBaseMatrix)[0],mBaseBitmap));
+                }
+            }
+        });
+
+    }
+
+    int bitmapW,bitmapH;
+    BitmapCroper bitmapCroper;
+    public void setBitmapCroper(BitmapCroper bitmapCroper){
+        this.bitmapW=bitmapCroper.getBitmapW();
+        this.bitmapH=bitmapCroper.getBitmapH();
+        this.bitmapCroper=bitmapCroper;
+        mBaseBitmap=Bitmap.createBitmap(bitmapW,bitmapH, Bitmap.Config.ARGB_8888);
+        hasDrawable=true;
+        initBase();
+        setImageBitmap(mBaseBitmap);
+        Log.i("TAG", "setBitmapCroper: "+bitmapW+" "+bitmapH);
+
     }
 
     /**
@@ -314,14 +361,22 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
         return true;
     }
 
-    private static int getDrawableWidth(Drawable d) {
+    private int getDrawableWidth() {
+        if (bitmapCroper!=null){
+            return bitmapW;
+        }
+        Drawable d=getDrawable();
         int width = d.getIntrinsicWidth();
         if (width <= 0) width = d.getMinimumWidth();
         if (width <= 0) width = d.getBounds().width();
         return width;
     }
 
-    private static int getDrawableHeight(Drawable d) {
+    private int getDrawableHeight() {
+        if (bitmapCroper!=null){
+            return bitmapH;
+        }
+        Drawable d=getDrawable();
         int height = d.getIntrinsicHeight();
         if (height <= 0) height = d.getMinimumHeight();
         if (height <= 0) height = d.getBounds().height();
@@ -337,26 +392,37 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
 
         isZoonUp = false;
 
-        Drawable img = getDrawable();
-
         int w = getWidth();
         int h = getHeight();
-        int imgw = getDrawableWidth(img);
-        int imgh = getDrawableHeight(img);
+        int imgw = getDrawableWidth();
+        int imgh = getDrawableHeight();
+
 
         mBaseRect.set(0, 0, imgw, imgh);
 
-        mBaseBitmap=((BitmapDrawable)img).getBitmap();
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        mBaseBitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
-        InputStream is = new ByteArrayInputStream(baos.toByteArray());
-        try {
-            //区域解码器
-            mRegionDecoder = BitmapRegionDecoder.newInstance(is,false);
-        } catch (IOException e) {
-            e.printStackTrace();
+        if (bitmapCroper==null){
+            mBaseBitmap=((BitmapDrawable)getDrawable()).getBitmap();
+            bitmapW=imgw;
+            bitmapH=imgh;
         }
+
+//        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+//        mBaseBitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
+//        InputStream is = new ByteArrayInputStream(baos.toByteArray());
+//        try {
+//            //区域解码器
+//            mRegionDecoder = BitmapRegionDecoder.newInstance(is,false);
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+
+//        BitmapFactory.Options options = new BitmapFactory.Options();
+//        options.inJustDecodeBounds = true;
+//        BitmapFactory.decodeResource(getResources(), this.getId(), options);
+//        int imageHeight = options.outHeight;
+//        int imageWidth = options.outWidth;
+//        String imageType = options.outMimeType;
+
 
         // 以图片中心点居中位移
         int tx = (w - imgw) / 2;
@@ -380,6 +446,8 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
         mBaseMatrix.postTranslate(tx, ty);
         mBaseMatrix.postScale(scale, scale, mScreenCenter.x, mScreenCenter.y);
         mBaseMatrix.mapRect(mBaseRect);
+
+        Log.i("TAG", "initBase: mBaseMatrix="+MatrixUtils.getMatrixScale(mBaseMatrix)[0]);
 
         mHalfBaseRectWidth = mBaseRect.width() / 2;
         mHalfBaseRectHeight = mBaseRect.height() / 2;
@@ -426,10 +494,8 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
         if (!hasDrawable) return;
         if (!isKnowSize) return;
 
-        Drawable img = getDrawable();
-
-        int imgw = getDrawableWidth(img);
-        int imgh = getDrawableHeight(img);
+        int imgw = getDrawableWidth();
+        int imgh = getDrawableHeight();
 
         if (imgw > mWidgetRect.width() || imgh > mWidgetRect.height()) {
             float scaleX = imgw / mImgRect.width();
@@ -456,6 +522,19 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
 
             executeTranslate();
             resetBase();
+        }
+        if (cropGravity==0){
+            float ty = -mImgRect.top;
+            mAnimaMatrix.postTranslate(0, ty);
+            executeTranslate();
+            resetBase();
+            mTranslateY += ty;
+        }else if (cropGravity==2){
+            float ty = (mWidgetRect.bottom - mImgRect.bottom);
+            mAnimaMatrix.postTranslate(0, ty);
+            executeTranslate();
+            resetBase();
+            mTranslateY += ty;
         }
     }
 
@@ -517,9 +596,8 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
     }
 
     private void resetBase() {
-        Drawable img = getDrawable();
-        int imgw = getDrawableWidth(img);
-        int imgh = getDrawableHeight(img);
+        int imgw = getDrawableWidth();
+        int imgh = getDrawableHeight();
         mBaseRect.set(0, 0, imgw, imgh);
         mBaseMatrix.set(mSynthesisMatrix);
         mBaseMatrix.mapRect(mBaseRect);
@@ -549,9 +627,8 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
             return;
         }
 
-        Drawable d = getDrawable();
-        int drawableW = getDrawableWidth(d);
-        int drawableH = getDrawableHeight(d);
+        int drawableW = getDrawableWidth();
+        int drawableH = getDrawableHeight();
 
         int pWidth = MeasureSpec.getSize(widthMeasureSpec);
         int pHeight = MeasureSpec.getSize(heightMeasureSpec);
@@ -644,16 +721,23 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        try {
+            Thread.sleep(300);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         Log.i("kkkkkk", "onDraw: -----------------------------------");
-        Log.i("kkkkkk", "onDraw: mBaseBitmap "+mBaseBitmap.getWidth()+" "+mBaseBitmap.getHeight());
-        Log.i("kkkkkk", "onDraw: mBaseBitmap.size "+mBaseBitmap.getByteCount());
+        Log.i("kkkkkk", "onDraw: mBaseBitmap "+bitmapW+" "+bitmapH);
         Log.i("kkkkkk", "onDraw: mWidgetRect "+mWidgetRect);
         Log.i("kkkkkk", "onDraw: mImgRect "+mImgRect);
         Log.i("kkkkkk", "onDraw: mScale MatrixScale "+MatrixUtils.getMatrixScale(getImageMatrix())[0]+" "+mScale);
         Log.i("kkkkkk", "onDraw: mScale MaxScale "+getMaxScale());
 
 
-        if (!isBigPic){
+        if (bitmapCroper==null){
+            if (mBaseBitmap==null){
+                return;
+            }
             Matrix matrix=getImageMatrix();
             canvas.drawBitmap(mBaseBitmap,matrix,new Paint());
             return;
@@ -700,37 +784,41 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
             }
         }
 
-        if (l+w>mBaseBitmap.getWidth()){
-            w=mBaseBitmap.getWidth()-l;
-        }else if (w<0){
-            w=0;
+        if (l+w>bitmapW){
+            w=bitmapW-l;
         }
 
-        if (t+h>mBaseBitmap.getHeight()){
-            h=mBaseBitmap.getHeight()-t;
-        }else if (h<0){
-            h=0;
+        if (t+h>bitmapH){
+            h=bitmapH-t;
         }
-
-
-        Matrix matrix=new Matrix();
-        matrix.postScale(currentScale,currentScale);
 
         Log.i("kkkkkk", "onDraw: crop "+l+" "+t+" "+w+" "+h);
 
-        Bitmap cbitmap=Bitmap.createBitmap(mBaseBitmap, l,t,w,h, matrix, false);
+        if (w<=0||h<=0){
+            return;
+        }
+        if (l+w>bitmapW){
+            return;
+        }
+
+        if (t+h>bitmapH){
+            return;
+        }
+
+        long lt=System.currentTimeMillis();
+        Bitmap cbitmap=bitmapCroper.getBitmap(l,t,w,h,currentScale);
+        Log.i("wwwwww", "onDraw: "+(System.currentTimeMillis()-lt));
+
+//        Matrix matrix=new Matrix();
+//        matrix.postScale(currentScale,currentScale);
+//        Bitmap cbitmap=Bitmap.createBitmap(mBaseBitmap, l,t,w,h, matrix, false);
+        if (cbitmap==null)return;
         Log.i("kkkkkk", "onDraw: cbitmap.size "+cbitmap.getByteCount()+" "+cbitmap.getWidth());
 
-//        Bitmap bitmap=Bitmap.createBitmap(cbitmap, 0,0,cbitmap.getWidth(),cbitmap.getHeight(), matrix, false);
-//        Log.i("kkkkkk", "onDraw: bitmap.size "+bitmap.getByteCount()+" "+bitmap.getWidth());
-
-
-//        BitmapFactory.Options mOptions=new BitmapFactory.Options();
-//        mOptions.inBitmap = mBaseBitmap;
-//        mBaseBitmap = mRegionDecoder.decodeRegion(vInBm,mOptions);
-//        matrix.setScale(mScale,mScale);
-//        canvas.drawBitmap(mBaseBitmap,new Matrix(),new Paint());
         canvas.drawBitmap(cbitmap,mImgRect.left>=0? mImgRect.left:0,mImgRect.top>0? mImgRect.top:0,new Paint());
+
+        cbitmap.recycle();
+        cbitmap=null;
 
     }
 
@@ -764,6 +852,7 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
      * 手指抬起时调用，恢复状态
      */
     private void onUp() {
+//        if (true)return;
         if (mTranslate.isRuning) return;
 
         if (canRotate || mDegrees % 90 != 0) {
@@ -811,8 +900,18 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
     }
 
     private void doTranslateReset(RectF imgRect) {
+        Log.i("TAG", "doTranslateReset: "+imgRect);
+        Log.i("TAG", "doTranslateReset: "+mWidgetRect);
         int tx = 0;
         int ty = 0;
+
+        if (mScaleType==ScaleType.CENTER_CROP){
+            // TODO: 2023/10/7 双击缩放逻辑
+
+
+            return;
+        }
+
 
         if (imgRect.width() <= mWidgetRect.width()) {
             if (!isImageCenterWidth(imgRect))
@@ -879,6 +978,21 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
                 return false;
 
             mScale *= scaleFactor;
+
+            Log.i("pppppp", "onScale: "+mScale+" "+scaleFactor+" "+getMaxScale());
+
+            if (mScale<mMinScale){
+                mScale=mMinScale;
+                return true;
+            }
+
+            if (mScale>getMaxScale()){
+                mScale=getMaxScale();
+                return true;
+            }
+
+
+
 //            mScaleCenter.set(detector.getFocusX(), detector.getFocusY());
             mAnimaMatrix.postScale(scaleFactor, scaleFactor, detector.getFocusX(), detector.getFocusY());
             executeTranslate();
@@ -978,9 +1092,11 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
 
         @Override
         public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+
             if (hasMultiTouch) return false;
             if (!imgLargeWidth && !imgLargeHeight) return false;
             if (mTranslate.isRuning) return false;
+
 
             float vx = velocityX;
             float vy = velocityY;
@@ -1018,8 +1134,19 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
 
         @Override
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+
             if (mTranslate.isRuning) {
                 mTranslate.stop();
+            }
+
+            if (!canScrollOver){
+                if (mImgRect.left-distanceX>0||mImgRect.right-distanceX<mWidgetRect.width()){
+                    distanceX=0;
+                }
+
+                if (mImgRect.top-distanceY>0||mImgRect.bottom-distanceY<mWidgetRect.height()){
+                    distanceY=0;
+                }
             }
 
             if (canScrollHorizontallySelf(distanceX)) {
@@ -1130,6 +1257,7 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
     };
 
     public boolean canScrollHorizontallySelf(float direction) {
+//        if (mImgRect.left>0||mImgRect.top>0||mImgRect.right<mWidgetRect.width()||mImgRect.bottom<mWidgetRect.height())return false;
         if (mImgRect.width() <= mWidgetRect.width()) return false;
         if (direction < 0 && Math.round(mImgRect.left) - direction >= mWidgetRect.left)
             return false;
@@ -1180,9 +1308,9 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
         }
     }
 
-    private class Transform implements Runnable {
+    public class Transform implements Runnable {
 
-        boolean isRuning;
+        public boolean isRuning;
 
         OverScroller mTranslateScroller;
         OverScroller mFlingScroller;
@@ -1403,27 +1531,27 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
         return new Info(rect, mImgRect, mWidgetRect, mBaseRect, mScreenCenter, mScale, mDegrees, mScaleType);
     }
 
-    public static Info getImageViewInfo(ImageView imgView) {
-        int[] p = new int[2];
-        getLocation(imgView, p);
-
-        Drawable drawable = imgView.getDrawable();
-
-        Matrix matrix = imgView.getImageMatrix();
-
-        int width = getDrawableWidth(drawable);
-        int height = getDrawableHeight(drawable);
-
-        RectF imgRect = new RectF(0, 0, width, height);
-        matrix.mapRect(imgRect);
-
-        RectF rect = new RectF(p[0] + imgRect.left, p[1] + imgRect.top, p[0] + imgRect.right, p[1] + imgRect.bottom);
-        RectF widgetRect = new RectF(0, 0, imgView.getWidth(), imgView.getHeight());
-        RectF baseRect = new RectF(widgetRect);
-        PointF screenCenter = new PointF(widgetRect.width() / 2, widgetRect.height() / 2);
-
-        return new Info(rect, imgRect, widgetRect, baseRect, screenCenter, 1, 0, imgView.getScaleType());
-    }
+//    public static Info getImageViewInfo(ImageView imgView) {
+//        int[] p = new int[2];
+//        getLocation(imgView, p);
+//
+//        Drawable drawable = imgView.getDrawable();
+//
+//        Matrix matrix = imgView.getImageMatrix();
+//
+//        int width = getDrawableWidth();
+//        int height = getDrawableHeight();
+//
+//        RectF imgRect = new RectF(0, 0, width, height);
+//        matrix.mapRect(imgRect);
+//
+//        RectF rect = new RectF(p[0] + imgRect.left, p[1] + imgRect.top, p[0] + imgRect.right, p[1] + imgRect.bottom);
+//        RectF widgetRect = new RectF(0, 0, imgView.getWidth(), imgView.getHeight());
+//        RectF baseRect = new RectF(widgetRect);
+//        PointF screenCenter = new PointF(widgetRect.width() / 2, widgetRect.height() / 2);
+//
+//        return new Info(rect, imgRect, widgetRect, baseRect, screenCenter, 1, 0, imgView.getScaleType());
+//    }
 
     private static void getLocation(View target, int[] position) {
 
@@ -1602,5 +1730,11 @@ public class FreeImgView extends androidx.appcompat.widget.AppCompatImageView {
         executeTranslate();
     }
 
-
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        if (bitmapCroper!=null){
+            bitmapCroper.destroy();
+        }
+    }
 }
